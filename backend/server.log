@@ -1,0 +1,249 @@
+﻿python : INFO:     Started 
+server process [22832]
+At line:1 char:1
++ python -m uvicorn main:app 
+--port 8000 --log-level 
+debug 2>&1 | Out-F ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~
+    + CategoryInfo           
+   : NotSpecified: (INFO:    
+     Started server proces   
+ s [22832]:String) [], Re    
+moteException
+    + FullyQualifiedErrorId  
+   : NativeCommandError
+ 
+INFO:     Waiting for 
+application startup.
+INFO:     Application 
+startup complete.
+INFO:     Uvicorn running on 
+http://127.0.0.1:8000 (Press 
+CTRL+C to quit)
+C:\Users\yetes\OneDrive\Deskt
+op\GA\backend\main.py:311: 
+RuntimeWarning: invalid 
+value encountered in subtract
+  diff = after - before
+C:\Users\yetes\AppData\Local\
+Programs\Python\Python312\Lib
+\site-packages\numpy\_core\fr
+omnumeric.py:86: 
+RuntimeWarning: overflow 
+encountered in reduce
+  return ufunc.reduce(obj, 
+axis, dtype, out, 
+**passkwargs)
+INFO:     127.0.0.1:59247 - "POST /analysis/detect HTTP/1.1" 500 Internal Server Error
+ERROR:    Exception in ASGI 
+application
+Traceback (most recent call 
+last):
+  File "C:\Users\yetes\AppDat
+a\Local\Programs\Python\Pytho
+n312\Lib\site-packages\uvicor
+n\protocols\http\httptools_im
+pl.py", line 409, in run_asgi
+    result = await app(  # 
+type: 
+ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^
+  File "C:\Users\yetes\AppDat
+a\Local\Programs\Python\Pytho
+n312\Lib\site-packages\uvicor
+n\middleware\proxy_headers.py
+", line 60, in __call__
+    return await 
+self.app(scope, receive, 
+send)
+           ^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^
+  File "C:\Users\yetes\AppDat
+a\Local\Programs\Python\Pytho
+n312\Lib\site-packages\fastap
+i\applications.py", line 
+1054, in __call__
+    await 
+super().__call__(scope, 
+receive, send)
+  File "C:\Users\yetes\AppDat
+a\Local\Programs\Python\Pytho
+n312\Lib\site-packages\starle
+tte\applications.py", line 
+113, in __call__
+    await 
+self.middleware_stack(scope, 
+receive, send)
+  File "C:\Users\yetes\AppDat
+a\Local\Programs\Python\Pytho
+n312\Lib\site-packages\starle
+tte\middleware\errors.py", 
+line 186, in __call__
+    raise exc
+  File "C:\Users\yetes\AppDat
+a\Local\Programs\Python\Pytho
+n312\Lib\site-packages\starle
+tte\middleware\errors.py", 
+line 164, in __call__
+    await self.app(scope, 
+receive, _send)
+  File "C:\Users\yetes\AppDat
+a\Local\Programs\Python\Pytho
+n312\Lib\site-packages\starle
+tte\middleware\cors.py", 
+line 85, in __call__
+    await self.app(scope, 
+receive, send)
+  File "C:\Users\yetes\AppDat
+a\Local\Programs\Python\Pytho
+n312\Lib\site-packages\starle
+tte\middleware\exceptions.py"
+, line 63, in __call__
+    await wrap_app_handling_e
+xceptions(self.app, 
+conn)(scope, receive, send)
+  File "C:\Users\yetes\AppDat
+a\Local\Programs\Python\Pytho
+n312\Lib\site-packages\starle
+tte\_exception_handler.py", 
+line 53, in wrapped_app
+    raise exc
+  File "C:\Users\yetes\AppDat
+a\Local\Programs\Python\Pytho
+n312\Lib\site-packages\starle
+tte\_exception_handler.py", 
+line 42, in wrapped_app
+    await app(scope, 
+receive, sender)
+  File "C:\Users\yetes\AppDat
+a\Local\Programs\Python\Pytho
+n312\Lib\site-packages\starle
+tte\routing.py", line 716, 
+in __call__
+    await 
+self.middleware_stack(scope, 
+receive, send)
+  File "C:\Users\yetes\AppDat
+a\Local\Programs\Python\Pytho
+n312\Lib\site-packages\starle
+tte\routing.py", line 736, 
+in app
+    await 
+route.handle(scope, receive, 
+send)
+  File "C:\Users\yetes\AppDat
+a\Local\Programs\Python\Pytho
+n312\Lib\site-packages\starle
+tte\routing.py", line 290, 
+in handle
+    await self.app(scope, 
+receive, send)
+  File "C:\Users\yetes\AppDat
+a\Local\Programs\Python\Pytho
+n312\Lib\site-packages\starle
+tte\routing.py", line 78, in 
+app
+    await wrap_app_handling_e
+xceptions(app, 
+request)(scope, receive, 
+send)
+  File "C:\Users\yetes\AppDat
+a\Local\Programs\Python\Pytho
+n312\Lib\site-packages\starle
+tte\_exception_handler.py", 
+line 53, in wrapped_app
+    raise exc
+  File "C:\Users\yetes\AppDat
+a\Local\Programs\Python\Pytho
+n312\Lib\site-packages\starle
+tte\_exception_handler.py", 
+line 42, in wrapped_app
+    await app(scope, 
+receive, sender)
+  File "C:\Users\yetes\AppDat
+a\Local\Programs\Python\Pytho
+n312\Lib\site-packages\starle
+tte\routing.py", line 75, in 
+app
+    response = await 
+f(request)
+               
+^^^^^^^^^^^^^^^^
+  File "C:\Users\yetes\AppDat
+a\Local\Programs\Python\Pytho
+n312\Lib\site-packages\fastap
+i\routing.py", line 302, in 
+app
+    raw_response = await 
+run_endpoint_function(
+                   
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\yetes\AppDat
+a\Local\Programs\Python\Pytho
+n312\Lib\site-packages\fastap
+i\routing.py", line 213, in 
+run_endpoint_function
+    return await 
+dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^
+  File "C:\Users\yetes\OneDri
+ve\Desktop\GA\backend\main.py
+", line 527, in detect_change
+    return 
+JSONResponse(content=result)
+           
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\yetes\AppDat
+a\Local\Programs\Python\Pytho
+n312\Lib\site-packages\starle
+tte\responses.py", line 190, 
+in __init__
+    
+super().__init__(content, 
+status_code, headers, 
+media_type, background)
+  File "C:\Users\yetes\AppDat
+a\Local\Programs\Python\Pytho
+n312\Lib\site-packages\starle
+tte\responses.py", line 47, 
+in __init__
+    self.body = 
+self.render(content)
+                
+^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\yetes\AppDat
+a\Local\Programs\Python\Pytho
+n312\Lib\site-packages\starle
+tte\responses.py", line 193, 
+in render
+    return json.dumps(
+           ^^^^^^^^^^^
+  File "C:\Users\yetes\AppDat
+a\Local\Programs\Python\Pytho
+n312\Lib\json\__init__.py", 
+line 238, in dumps
+    **kw).encode(obj)
+          ^^^^^^^^^^^
+  File "C:\Users\yetes\AppDat
+a\Local\Programs\Python\Pytho
+n312\Lib\json\encoder.py", 
+line 200, in encode
+    chunks = 
+self.iterencode(o, 
+_one_shot=True)
+             ^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^
+  File "C:\Users\yetes\AppDat
+a\Local\Programs\Python\Pytho
+n312\Lib\json\encoder.py", 
+line 258, in iterencode
+    return _iterencode(o, 0)
+           ^^^^^^^^^^^^^^^^^
+ValueError: Out of range 
+float values are not JSON 
+compliant: inf
