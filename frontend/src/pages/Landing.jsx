@@ -95,7 +95,7 @@ export default function Landing() {
             // 3. Add 'http://localhost:5173' to Authorized JavaScript origins
             // 4. Copy the Client ID and replace the dummy string below
             window.google.accounts.id.initialize({
-                client_id: "656796658435-9pn8qg5d8h55dkjtnvr0q3il1tu99u39.apps.googleusercontent.com",
+                client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID || "656796658435-9pn8qg5d8h55dkjtnvr0q3il1tu99u39.apps.googleusercontent.com",
                 callback: loginWithGoogle
             });
             window.google.accounts.id.renderButton(

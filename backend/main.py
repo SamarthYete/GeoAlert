@@ -181,7 +181,7 @@ _token_cache = {"token": None, "expires": 0}
 # ─────────────────────────────────────────────────────────────────────────────
 # Secure User Authentication Dependency
 # ─────────────────────────────────────────────────────────────────────────────
-GOOGLE_CLIENT_ID = "656796658435-9pn8qg5d8h55dkjtnvr0q3il1tu99u39.apps.googleusercontent.com"
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "656796658435-9pn8qg5d8h55dkjtnvr0q3il1tu99u39.apps.googleusercontent.com")
 
 def get_current_user(request: Request) -> str:
     """
