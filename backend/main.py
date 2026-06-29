@@ -1081,7 +1081,7 @@ async def process_ee_urban_expansion(req: EERequest):
     Uses Google Earth Engine to compute the Normalized Difference Built-up Index (NDBI)
     over a bounding box, comparing start_date and end_date to measure urban sprawl.
     """
-    if not os.path.exists(EE_SERVICE_ACCOUNT_KEY_FILE):
+    if not EE_SERVICE_ACCOUNT_KEY_JSON and not os.path.exists(EE_SERVICE_ACCOUNT_KEY_FILE):
         raise HTTPException(status_code=500, detail="Earth Engine API key not configured on backend.")
 
     try:
@@ -1219,7 +1219,6 @@ async def automated_alert_check_loop():
     For demonstration stability without rate limiting, it simulates api satellite variance.
     """
     while True:
-        await asyncio.sleep(86400) # Scan exactly every 24 hours
         print("[Cron] Firing daily batch satellite check...")
         try:
             with engine.begin() as conn:
@@ -1263,3 +1262,5 @@ async def automated_alert_check_loop():
                             
         except Exception as e:
             print(f"Background check loop error: {e}")
+            
+        await asyncio.sleep(86400) # Scan exactly every 24 hours
