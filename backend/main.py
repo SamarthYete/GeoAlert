@@ -659,6 +659,38 @@ def list_aois(request: Request):
     return results
 
 
+@app.get("/admin/users-aois")
+def get_admin_users_aois(request: Request):
+    try:
+        user_id = get_current_user(request)
+    except HTTPException:
+        raise HTTPException(status_code=401, detail="Authentication required")
+        
+    # Verify if it is the admin user (sub='1')
+    if user_id != '1':
+        raise HTTPException(status_code=403, detail="Access denied: Administrator privileges required")
+
+    with engine.connect() as conn:
+        users = conn.execute(text("SELECT * FROM users")).mappings().all()
+        aois = conn.execute(text("SELECT * FROM aois")).mappings().all()
+        
+    users_list = [dict(u) for u in users]
+    aois_list = []
+    for a in aois:
+        d = dict(a)
+        try:
+            d["center"] = _json.loads(d["center"])
+            d["bounds"] = _json.loads(d["bounds"])
+        except Exception:
+            pass
+        aois_list.append(d)
+        
+    return {
+        "users": users_list,
+        "aois": aois_list
+    }
+
+
 @app.post("/aois")
 def create_aoi(body: AOICreate, request: Request, bg: BackgroundTasks):
     user_id = get_current_user(request)

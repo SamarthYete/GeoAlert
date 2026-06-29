@@ -1,9 +1,41 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useAuthContext } from '../context/AuthContext';
 
 export default function Settings() {
+    const { user } = useAuthContext();
     const [isUnlocked, setIsUnlocked] = useState(false);
     const [passcode, setPasscode] = useState('');
     const [error, setError] = useState('');
+    const [activeTab, setActiveTab] = useState('users'); // 'users' or 'aois'
+
+    const [adminData, setAdminData] = useState({ users: [], aois: [] });
+    const [loadingAdmin, setLoadingAdmin] = useState(false);
+
+    useEffect(() => {
+        if (isUnlocked && user) {
+            setLoadingAdmin(true);
+            const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+            const headers = {};
+            if (user?.token) {
+                headers['Authorization'] = `Bearer ${user.token}`;
+            } else if (user?.sub) {
+                headers['user-id'] = user.sub;
+            }
+
+            fetch(`${API_BASE}/admin/users-aois`, { headers })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.users && data.aois) {
+                        setAdminData(data);
+                    }
+                    setLoadingAdmin(false);
+                })
+                .catch(err => {
+                    console.error("Failed to load admin data:", err);
+                    setLoadingAdmin(false);
+                });
+        }
+    }, [isUnlocked, user]);
 
     const [settings, setSettings] = useState({
         email: 'admin@geo-alert.in',
@@ -75,6 +107,119 @@ export default function Settings() {
 
     return (
         <div className="animate-in" style={{ display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 800 }}>
+            {/* Admin Dashboard: Users & Saved Zones */}
+            <div className="card" style={{ padding: 24 }}>
+                <div className="section-header" style={{ marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span className="section-title">👥 Registered Users & Saved Zones</span>
+                    <span className="tag tag-cyan">{adminData.users.length} Users | {adminData.aois.length} Zones</span>
+                </div>
+
+                {/* Tabs */}
+                <div style={{ display: 'flex', gap: 12, borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: 12, marginBottom: 20 }}>
+                    <button
+                        className={`btn btn-sm ${activeTab === 'users' ? 'btn-primary' : 'btn-ghost'}`}
+                        onClick={() => setActiveTab('users')}
+                        style={{ padding: '8px 16px', borderRadius: 8 }}
+                    >
+                        👤 Registered Users ({adminData.users.length})
+                    </button>
+                    <button
+                        className={`btn btn-sm ${activeTab === 'aois' ? 'btn-primary' : 'btn-ghost'}`}
+                        onClick={() => setActiveTab('aois')}
+                        style={{ padding: '8px 16px', borderRadius: 8 }}
+                    >
+                        🗺 Saved Zones ({adminData.aois.length})
+                    </button>
+                </div>
+
+                {loadingAdmin ? (
+                    <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
+                        Loading admin details from database...
+                    </div>
+                ) : activeTab === 'users' ? (
+                    adminData.users.length === 0 ? (
+                        <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                            No users have registered yet.
+                        </div>
+                    ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                            {adminData.users.map(u => {
+                                const userAois = adminData.aois.filter(a => a.user_id === u.id);
+                                return (
+                                    <div key={u.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 16, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 12 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                            {u.picture ? (
+                                                <img src={u.picture} alt="Profile" style={{ width: 40, height: 40, borderRadius: '50%', border: '2px solid var(--cyan)' }} />
+                                            ) : (
+                                                <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--cyan)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
+                                                    {u.name?.charAt(0) || 'U'}
+                                                </div>
+                                            )}
+                                            <div>
+                                                <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.95rem' }}>{u.name}</div>
+                                                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{u.email}</div>
+                                            </div>
+                                        </div>
+                                        <div style={{ textAlign: 'right' }}>
+                                            <span className="tag tag-blue" style={{ fontSize: '0.75rem' }}>
+                                                {userAois.length} Saved {userAois.length === 1 ? 'Zone' : 'Zones'}
+                                            </span>
+                                            <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: 4 }}>ID: {u.id.substring(0, 10)}...</div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )
+                ) : (
+                    adminData.aois.length === 0 ? (
+                        <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                            No saved zones exist in the database.
+                        </div>
+                    ) : (
+                        <div style={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                                <thead>
+                                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-muted)', textAlign: 'left' }}>
+                                        <th style={{ padding: '12px 8px' }}>Zone Name</th>
+                                        <th style={{ padding: '12px 8px' }}>Category</th>
+                                        <th style={{ padding: '12px 8px' }}>Area (km²)</th>
+                                        <th style={{ padding: '12px 8px' }}>Owner</th>
+                                        <th style={{ padding: '12px 8px' }}>Created</th>
+                                        <th style={{ padding: '12px 8px' }}>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {adminData.aois.map(a => {
+                                        const owner = adminData.users.find(u => u.id === a.user_id);
+                                        return (
+                                            <tr key={a.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', height: 48 }}>
+                                                <td style={{ padding: '8px', fontWeight: 600, color: 'var(--text-primary)' }}>{a.name}</td>
+                                                <td style={{ padding: '8px' }}>
+                                                    <span style={{ textTransform: 'capitalize', fontSize: '0.75rem', padding: '2px 8px', borderRadius: 4, background: 'rgba(255,255,255,0.05)', color: 'var(--text-muted)' }}>
+                                                        {a.category}
+                                                    </span>
+                                                </td>
+                                                <td style={{ padding: '8px', fontFamily: 'var(--font-mono)' }}>{a.area_km2?.toFixed(2)}</td>
+                                                <td style={{ padding: '8px', color: 'var(--cyan)', fontSize: '0.75rem' }} title={owner?.name || a.user_id}>
+                                                    {owner?.email || 'Unknown User'}
+                                                </td>
+                                                <td style={{ padding: '8px', color: 'var(--text-muted)', fontSize: '0.75rem' }}>{a.created}</td>
+                                                <td style={{ padding: '8px' }}>
+                                                    <span className={`tag ${a.status === 'critical' ? 'tag-red' : a.status === 'warning' ? 'tag-yellow' : 'tag-green'}`} style={{ fontSize: '0.7rem' }}>
+                                                        {a.status || 'normal'}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    )
+                )}
+            </div>
+
             {/* Alert Config */}
             <div className="card" style={{ padding: 24 }}>
                 <div className="section-header" style={{ marginBottom: 20 }}>
