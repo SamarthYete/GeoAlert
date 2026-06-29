@@ -154,12 +154,14 @@ def init_db():
             conn.execute(text('''CREATE TABLE IF NOT EXISTS users (id VARCHAR PRIMARY KEY, email VARCHAR, name VARCHAR, picture VARCHAR)'''))
             conn.execute(text('''CREATE TABLE IF NOT EXISTS aois (id VARCHAR PRIMARY KEY, user_id VARCHAR, name VARCHAR, category VARCHAR, color VARCHAR, center TEXT, bounds TEXT, area_km2 REAL, created VARCHAR, lastChecked VARCHAR, alertCount INTEGER, ndvi REAL, ndviChange REAL, status VARCHAR)'''))
             
-            # Try to add alert_threshold to older tables
-            try:
+        # Try to add alert_threshold to older tables in a separate transaction
+        try:
+            with engine.begin() as conn:
                 conn.execute(text('''ALTER TABLE aois ADD COLUMN alert_threshold REAL DEFAULT 15.0'''))
-            except Exception:
-                pass
-                
+        except Exception:
+            pass
+            
+        with engine.begin() as conn:
             conn.execute(text('''CREATE TABLE IF NOT EXISTS alerts (id VARCHAR PRIMARY KEY, user_id VARCHAR, aoiId VARCHAR, aoiName VARCHAR, type VARCHAR, severity VARCHAR, title VARCHAR, description TEXT, change_percent REAL, ndvi_before REAL, ndvi_after REAL, timestamp VARCHAR, emailSent INTEGER)'''))
     except Exception as e:
         print(f"Failed to initialize database tables: {e}")
