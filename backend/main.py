@@ -28,7 +28,39 @@ from dotenv import load_dotenv
 import ee
 from google.oauth2 import service_account
 
-load_dotenv()
+env_path = os.path.join(os.path.dirname(__file__), ".env")
+load_dotenv(env_path)
+
+def normalize_aoi(aoi_dict: dict) -> dict:
+    normalized = {}
+    for k, v in aoi_dict.items():
+        if k == "ndvichange":
+            normalized["ndviChange"] = v
+        elif k == "alertcount":
+            normalized["alertCount"] = v
+        elif k == "lastchecked":
+            normalized["lastChecked"] = v
+        else:
+            normalized[k] = v
+        # Keep lowercase variations as well
+        normalized[k] = v
+    return normalized
+
+def normalize_alert(alert_dict: dict) -> dict:
+    normalized = {}
+    for k, v in alert_dict.items():
+        if k == "emailsent":
+            normalized["emailSent"] = v
+        elif k == "aoiname":
+            normalized["aoiName"] = v
+        elif k == "aoiid":
+            normalized["aoiId"] = v
+        else:
+            normalized[k] = v
+        # Keep lowercase variations as well
+        normalized[k] = v
+    return normalized
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # App setup
@@ -655,7 +687,7 @@ def list_aois(request: Request):
         d = dict(r)
         d["center"] = _json.loads(d["center"])
         d["bounds"] = _json.loads(d["bounds"])
-        results.append(d)
+        results.append(normalize_aoi(d))
     return results
 
 
@@ -683,12 +715,13 @@ def get_admin_users_aois(request: Request):
             d["bounds"] = _json.loads(d["bounds"])
         except Exception:
             pass
-        aois_list.append(d)
+        aois_list.append(normalize_aoi(d))
         
     return {
         "users": users_list,
         "aois": aois_list
     }
+
 
 
 @app.post("/aois")
@@ -797,7 +830,9 @@ async def trigger_aoi_revalidation(aoi_id: str):
             if not aoi: return
             
             # Use same logic as automated loop but just for this one AOI
-            new_change = round(aoi['ndviChange'] + random.uniform(-1.0, 1.0), 2)
+            old_change = aoi.get('ndviChange') if 'ndviChange' in aoi else aoi.get('ndvichange', 0.0)
+            new_change = round(old_change + random.uniform(-1.0, 1.0), 2)
+
             threshold = aoi['alert_threshold'] if aoi['alert_threshold'] is not None else 15.0
             
             conn.execute(text("UPDATE aois SET ndviChange = :c, lastChecked = :t WHERE id = :id"), 
@@ -847,7 +882,8 @@ def list_alerts(request: Request):
     with engine.connect() as conn:
         rows = conn.execute(text("SELECT * FROM alerts WHERE user_id = :u ORDER BY timestamp DESC"), {"u": user_id}).mappings().all()
     
-    return [dict(r) for r in rows]
+    return [normalize_alert(dict(r)) for r in rows]
+
 
 @app.delete("/alerts/{alert_id}")
 def delete_alert(alert_id: str, request: Request):
@@ -962,7 +998,7 @@ def ndvi_to_base64_png(ndvi_arr: np.ndarray) -> str:
 
 
 @app.post("/analysis/detect")
-async def detect_change(req: AnalysisRequest, request: Request):
+async def detect_change(req: AnalysisRequest, request: Request, bg: BackgroundTasks):
     """
     Main analysis endpoint.
     
@@ -1105,8 +1141,26 @@ async def detect_change(req: AnalysisRequest, request: Request):
                 """), {
                     "id": alert_id, "u": owner_id, "aoiid": "drawn", "aoiname": req.aoi_name, "type": "change_detection", "sev": change["severity"],
                     "title": alert_title, "desc": summary, "pct": change["change_pct"], "nb": change["ndvi_before"], "na": change["ndvi_after"],
-                    "ts": result["timestamp"], "es": 0
+                    "ts": result["timestamp"], "es": 1 if (SMTP_USER and SMTP_PASS) else 0
                 })
+
+            # Send Email Asynchronously if SMTP is configured
+            if SMTP_USER and SMTP_PASS:
+                recipient = os.getenv("ALERT_RECIPIENT", SMTP_USER)
+                if owner_id and owner_id != "unknown":
+                    with engine.connect() as conn:
+                        u_res = conn.execute(text("SELECT email FROM users WHERE id = :u"), {"u": owner_id})
+                        u_row = u_res.mappings().first()
+                        if u_row and u_row["email"]:
+                            recipient = u_row["email"]
+                
+                alert_dict = {
+                    "id": alert_id, "user_id": owner_id, "aoiId": "drawn", "aoiName": req.aoi_name, "type": "change_detection",
+                    "severity": change["severity"], "title": alert_title, "description": summary,
+                    "change_percent": change["change_pct"], "ndvi_before": change["ndvi_before"], "ndvi_after": change["ndvi_after"],
+                    "timestamp": result["timestamp"], "emailSent": 1
+                }
+                bg.add_task(_send_email_task, recipient, alert_dict)
         except Exception as e:
             print("Alert generation error:", e)
 
@@ -1151,13 +1205,14 @@ def _send_email_task(to: str, alert: dict):
         msg["Subject"] = f"🚨 Geo-Alert Alert: {alert['title']}"
         msg["From"] = SMTP_USER
         msg["To"]   = to
+        aoi_name = alert.get('aoiName') if 'aoiName' in alert else alert.get('aoiname', '')
         html = f"""<html><body style="font-family:sans-serif;background:#03070f;color:#e8f4ff;padding:24px;">
   <div style="max-width:600px;margin:auto;background:#070d1a;border:2px solid {color}44;border-radius:16px;padding:28px;">
     <h2 style="color:{color}">🛰 Geo-Alert — Land Change Alert</h2>
     <h3>{alert['title']}</h3>
     <p>{alert['description']}</p>
     <table style="width:100%;font-size:13px;border-collapse:collapse;">
-      <tr><td style="padding:6px;opacity:.6">AOI</td><td>{alert.get('aoiName','')}</td></tr>
+      <tr><td style="padding:6px;opacity:.6">AOI</td><td>{aoi_name}</td></tr>
       <tr><td style="padding:6px;opacity:.6">Severity</td><td style="color:{color};font-weight:700;text-transform:uppercase">{sev}</td></tr>
       <tr><td style="padding:6px;opacity:.6">Change</td><td style="color:#ff4560">{alert.get('change_percent','0')}%</td></tr>
       <tr><td style="padding:6px;opacity:.6">NDVI Before</td><td style="color:#00ff88">{alert.get('ndvi_before','')}</td></tr>
@@ -1172,6 +1227,12 @@ def _send_email_task(to: str, alert: dict):
             s.login(SMTP_USER, SMTP_PASS)
             s.sendmail(SMTP_USER, to, msg.as_string())
         print(f"[email] Sent to {to}")
+        
+        # Mark email as sent in database
+        alert_id = alert.get("id")
+        if alert_id:
+            with engine.begin() as conn:
+                conn.execute(text("UPDATE alerts SET emailsent = 1 WHERE id = :id"), {"id": alert_id})
     except Exception as e:
         print(f"Error checking threshold: {e}")
 
@@ -1334,7 +1395,8 @@ async def automated_alert_check_loop():
                 aois = conn.execute(text("SELECT id, name, user_id, ndviChange, alert_threshold FROM aois")).mappings().fetchall()
                 for aoi in aois:
                     # Simulate an automated update from the satellite API
-                    new_change = round(aoi['ndviChange'] + random.uniform(-2.0, 5.0), 2)
+                    old_change = aoi.get('ndviChange') if 'ndviChange' in aoi else aoi.get('ndvichange', 0.0)
+                    new_change = round(old_change + random.uniform(-2.0, 5.0), 2)
                     threshold = aoi['alert_threshold'] if aoi['alert_threshold'] is not None else 15.0
                     
                     # Update the live metrics for the Dashboard
@@ -1342,7 +1404,7 @@ async def automated_alert_check_loop():
                                 {"c": new_change, "t": datetime.datetime.utcnow().isoformat(), "id": aoi['id']})
                     
                     # Did it break the user's specific threshold and suddenly become dangerous?
-                    if new_change >= threshold and aoi['ndviChange'] < threshold:
+                    if new_change >= threshold and old_change < threshold:
                         u_res = conn.execute(text("SELECT email FROM users WHERE id = :u"), {"u": aoi['user_id']})
                         u_row = u_res.mappings().first()
                         
