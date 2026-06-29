@@ -264,6 +264,49 @@ def get_current_user(request: Request) -> str:
     raise HTTPException(status_code=401, detail="Authentication required")
 
 
+def get_current_user_email(request: Request) -> Optional[str]:
+    """
+    Attempts to extract the user's email address directly from the authenticated token
+    or fallback request headers.
+    """
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header.split("Bearer ")[1]
+        
+        # Check mock token
+        if token.startswith("mock."):
+            try:
+                import base64, json
+                parts = token.split('.')
+                if len(parts) >= 2:
+                    b64_str = parts[1]
+                    missing_padding = len(b64_str) % 4
+                    if missing_padding:
+                        b64_str += '=' * (4 - missing_padding)
+                    payload_str = base64.b64decode(b64_str).decode('utf-8')
+                    payload = json.loads(payload_str)
+                    return payload.get("email")
+            except Exception:
+                pass
+
+        try:
+            from google.oauth2 import id_token
+            from google.auth.transport import requests as google_requests
+            id_info = id_token.verify_oauth2_token(token, google_requests.Request(), GOOGLE_CLIENT_ID, clock_skew_in_seconds=300)
+            return id_info.get("email")
+        except Exception:
+            try:
+                import base64, json
+                payload = json.loads(base64.urlsafe_b64decode(token.split('.')[1] + '=='))
+                if payload.get("aud") == GOOGLE_CLIENT_ID:
+                    return payload.get("email")
+            except Exception:
+                pass
+
+    return request.headers.get("user-email")
+
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Schemas
 # ─────────────────────────────────────────────────────────────────────────────
@@ -773,6 +816,11 @@ def create_aoi(body: AOICreate, request: Request, bg: BackgroundTasks):
             user_row = user_res.mappings().first()
             if user_row and user_row["email"]:
                 recipient = user_row["email"]
+            else:
+                token_email = get_current_user_email(request)
+                if token_email:
+                    recipient = token_email
+
                 
             if SMTP_USER and SMTP_PASS:
                 alert_dict = {
@@ -1154,6 +1202,11 @@ async def detect_change(req: AnalysisRequest, request: Request, bg: BackgroundTa
                         if u_row and u_row["email"]:
                             recipient = u_row["email"]
                 
+                if recipient == os.getenv("ALERT_RECIPIENT", SMTP_USER):
+                    token_email = get_current_user_email(request)
+                    if token_email:
+                        recipient = token_email
+                
                 alert_dict = {
                     "id": alert_id, "user_id": owner_id, "aoiId": "drawn", "aoiName": req.aoi_name, "type": "change_detection",
                     "severity": change["severity"], "title": alert_title, "description": summary,
@@ -1171,7 +1224,7 @@ async def detect_change(req: AnalysisRequest, request: Request, bg: BackgroundTa
 # Email
 # ─────────────────────────────────────────────────────────────────────────────
 @app.post("/alerts/{alert_id}/email")
-async def send_email(alert_id: str, bg: BackgroundTasks):
+async def send_email(alert_id: str, request: Request, bg: BackgroundTasks):
     with engine.connect() as conn:
         res = conn.execute(text("SELECT * FROM alerts WHERE id = :id"), {"id": alert_id})
         row = res.mappings().first()
@@ -1182,16 +1235,27 @@ async def send_email(alert_id: str, bg: BackgroundTasks):
     alert = dict(row)
     recipient = os.getenv("ALERT_RECIPIENT", SMTP_USER)
     
+    try:
+        user_id = get_current_user(request)
+    except Exception:
+        user_id = None
+        
     with engine.connect() as conn:
-        owner = alert.get("user_id", "")
-        if owner:
-            u_res = conn.execute(text("SELECT email FROM users WHERE id = :u"), {"u": owner})
+        lookup_id = user_id or alert.get("user_id", "")
+        if lookup_id and lookup_id != "unknown":
+            u_res = conn.execute(text("SELECT email FROM users WHERE id = :u"), {"u": lookup_id})
             u_row = u_res.mappings().first()
             if u_row and u_row["email"]:
                 recipient = u_row["email"]
+                
+    if recipient == os.getenv("ALERT_RECIPIENT", SMTP_USER):
+        token_email = get_current_user_email(request)
+        if token_email:
+            recipient = token_email
 
     bg.add_task(_send_email_task, recipient, alert)
     return {"queued": True, "to": recipient}
+
 
 
 def _send_email_task(to: str, alert: dict):
