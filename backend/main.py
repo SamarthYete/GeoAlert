@@ -863,6 +863,104 @@ def delete_alert(alert_id: str, request: Request):
     return {"ok": True}
 
 
+async def fetch_public_stac_thumbnail(bbox: List[float], date: str) -> Optional[str]:
+    """
+    Query the public Element 84 Earth Search STAC API to find the closest Sentinel-2 scene 
+    and return its thumbnail URL.
+    """
+    try:
+        # Parse start and end dates for a window around the target date
+        target_dt = datetime.datetime.strptime(date, "%Y-%m-%d")
+        from_dt = (target_dt - datetime.timedelta(days=15)).strftime("%Y-%m-%dT00:00:00Z")
+        to_dt   = (target_dt + datetime.timedelta(days=15)).strftime("%Y-%m-%dT23:59:59Z")
+        
+        payload = {
+            "collections": ["sentinel-2-l2a", "sentinel-2-c1-l2a"],
+            "bbox": bbox,
+            "datetime": f"{from_dt}/{to_dt}",
+            "limit": 1,
+            "query": {"eo:cloud_cover": {"lt": 20}},
+            "sortby": [{"field": "properties.datetime", "direction": "desc"}]
+        }
+        
+        async with httpx.AsyncClient(timeout=15) as client:
+            r = await client.post("https://earth-search.aws.element84.com/v1/search", json=payload)
+            if r.status_code == 200:
+                data = r.json()
+                features = data.get("features", [])
+                if features:
+                    assets = features[0].get("assets", {})
+                    # Prefer thumbnail, then preview
+                    thumb = assets.get("thumbnail", {}).get("href") or assets.get("preview", {}).get("href")
+                    if thumb:
+                        return thumb
+    except Exception as e:
+        print(f"[public_stac] Failed to fetch public thumbnail for date {date}: {e}")
+    return None
+
+
+def ndvi_to_base64_png(ndvi_arr: np.ndarray) -> str:
+    """
+    Convert a 2D float array of NDVI (-1 to 1) into a colorized PNG image
+    encoded as a base64 data URI.
+    Uses a green-brown-red color map.
+    """
+    try:
+        from PIL import Image
+        import io
+        
+        h, w = ndvi_arr.shape
+        rgba = np.zeros((h, w, 4), dtype=np.uint8)
+        
+        # Fill alpha channel (fully opaque)
+        rgba[..., 3] = 255
+        
+        # Replace NaNs with 0
+        ndvi_clean = np.nan_to_num(ndvi_arr, nan=0.0)
+        
+        # Color mapping:
+        # NDVI ranges from -1 to 1.
+        # -1.0 to 0.0 -> Red/Brown tones (water / soil / low NDVI)
+        # 0.0 to 0.4 -> Yellow/Beige/Light Green (sparse vegetation / crops)
+        # 0.4 to 1.0 -> Green tones (dense vegetation)
+        
+        for y in range(h):
+            for x in range(w):
+                val = ndvi_clean[y, x]
+                val_norm = (val + 1.0) / 2.0
+                val_norm = max(0.0, min(1.0, val_norm))
+                
+                if val_norm < 0.5:
+                    # Interpolation from Red [215, 25, 28] to Yellow [255, 255, 191]
+                    t = val_norm / 0.5
+                    r = int(215 + (255 - 215) * t)
+                    g = int(25 + (255 - 25) * t)
+                    b = int(28 + (191 - 28) * t)
+                else:
+                    # Interpolation from Yellow [255, 255, 191] to Green [26, 150, 65]
+                    t = (val_norm - 0.5) / 0.5
+                    r = int(255 + (26 - 255) * t)
+                    g = int(255 + (150 - 255) * t)
+                    b = int(191 + (65 - 191) * t)
+                    
+                rgba[y, x, 0] = r
+                rgba[y, x, 1] = g
+                rgba[y, x, 2] = b
+                
+        img = Image.fromarray(rgba, mode='RGBA')
+        # Resize to make it smooth and high-res enough for UI
+        if h < 256 or w < 256:
+            img = img.resize((256, 256), Image.Resampling.BILINEAR)
+            
+        buffered = io.BytesIO()
+        img.save(buffered, format="PNG")
+        img_str = base64.b64encode(buffered.getvalue()).decode()
+        return f"data:image/png;base64,{img_str}"
+    except Exception as e:
+        print(f"[ndvi_to_base64] Failed to convert: {e}")
+        return ""
+
+
 @app.post("/analysis/detect")
 async def detect_change(req: AnalysisRequest, request: Request):
     """
@@ -927,13 +1025,24 @@ async def detect_change(req: AnalysisRequest, request: Request):
         after_ndvi = np.clip(before_ndvi - decay + noise, 0.01, 0.99).astype(np.float32)
         b_stats = compute_ndvi_stats(before_ndvi)
         a_stats = compute_ndvi_stats(after_ndvi)
+        
+        # Try to fetch real thumbnails from public STAC search
+        image_before = await fetch_public_stac_thumbnail(req.bbox, req.start_date)
+        image_after  = await fetch_public_stac_thumbnail(req.bbox, req.end_date)
+        
+        # If public STAC fails, generate visual NDVI heatmaps
+        if not image_before:
+            image_before = ndvi_to_base64_png(before_ndvi)
+        if not image_after:
+            image_after = ndvi_to_base64_png(after_ndvi)
+
         scene_meta = {
             "scene_count_before": 3,
             "scene_count_after":  4,
             "cloud_cover_before": 4.2,
             "cloud_cover_after":  7.8,
-            "image_before": None,
-            "image_after": None,
+            "image_before": image_before,
+            "image_after": image_after,
         }
 
     # ── Change detection (same for both modes) ───────────────────────────────
