@@ -239,8 +239,8 @@ def get_current_user(request: Request) -> str:
 class UserCreate(BaseModel):
     id: str
     email: str
-    name: str
-    picture: str
+    name: Optional[str] = ""
+    picture: Optional[str] = ""
 
 class AnalysisRequest(BaseModel):
     bbox: List[float]          # [west, south, east, north]

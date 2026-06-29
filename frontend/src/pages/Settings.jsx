@@ -3,7 +3,7 @@ import { useAuthContext } from '../context/AuthContext';
 
 export default function Settings() {
     const { user } = useAuthContext();
-    const [isUnlocked, setIsUnlocked] = useState(false);
+    const [isUnlocked, setIsUnlocked] = useState(true);
     const [passcode, setPasscode] = useState('');
     const [error, setError] = useState('');
     const [activeTab, setActiveTab] = useState('users'); // 'users' or 'aois'
@@ -371,7 +371,6 @@ export default function Settings() {
 
             {/* Save */}
             <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', alignItems: 'center' }}>
-                <button className="btn btn-ghost" onClick={() => setIsUnlocked(false)}>🔒 Lock Panel</button>
                 {saved && (
                     <div className="btn btn-ghost" style={{ color: 'var(--green)', borderColor: 'rgba(0,255,136,0.3)', background: 'var(--green-dim)' }}>
                         ✓ Settings saved!
